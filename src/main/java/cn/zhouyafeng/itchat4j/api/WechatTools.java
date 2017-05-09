@@ -1,11 +1,17 @@
 package cn.zhouyafeng.itchat4j.api;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import com.alibaba.fastjson.JSONObject;
-
 import cn.zhouyafeng.itchat4j.utils.Core;
+import cn.zhouyafeng.itchat4j.utils.MyHttpClient;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import org.apache.http.HttpEntity;
+import org.apache.http.util.EntityUtils;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * 微信小工具，如获好友列表等
@@ -17,7 +23,9 @@ import cn.zhouyafeng.itchat4j.utils.Core;
  */
 public class WechatTools {
 
-	private static Core core = Core.getInstance();
+    private static Logger logger = Logger.getLogger("Wechat");
+    private static Core core = Core.getInstance();
+    private static MyHttpClient myHttpClient = core.getMyHttpClient();
 
 	/**
 	 * 根据用户名发送文本消息
@@ -99,5 +107,35 @@ public class WechatTools {
 	public static List<String> getGroupIdList() {
 		return core.getGroupIdList();
 	}
+
+    /**
+     * 修改备注名
+     *
+     * @param toUserName 某个用户
+     * @param remarkname 备注名
+     * @return 成功或者失败
+     */
+    public static boolean changeRemarkName(String toUserName, String remarkname) {
+        String url = String.format("%s/webwxoplog", core.getLoginInfo().get("url"));
+
+        Map<String, Object> paramMap = new HashMap<String, Object>();
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, String>> baseRequestMap = (Map<String, Map<String, String>>) core.getLoginInfo()
+                .get("baseRequest");
+        paramMap.put("BaseRequest", baseRequestMap.get("BaseRequest"));
+        paramMap.put("CmdId", 2);
+        paramMap.put("RemarkName", remarkname);
+        paramMap.put("UserName", toUserName);
+        try {
+            String paramStr = JSON.toJSONString(paramMap);
+            HttpEntity entity = myHttpClient.doPost(url, paramStr);
+            JSONObject jsonObject = JSON.parseObject(EntityUtils.toString(entity, "UTF-8"));
+            JSONObject responseJsonObject = jsonObject.getJSONObject("BaseResponse");
+            return responseJsonObject.getInteger("Ret") == 0;
+        } catch (Exception e) {
+            logger.info(e.getMessage());
+        }
+        return false;
+    }
 
 }
