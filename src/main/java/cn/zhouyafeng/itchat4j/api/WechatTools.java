@@ -1,16 +1,16 @@
 package cn.zhouyafeng.itchat4j.api;
 
+import cn.zhouyafeng.itchat4j.utils.Config;
 import cn.zhouyafeng.itchat4j.utils.Core;
 import cn.zhouyafeng.itchat4j.utils.MyHttpClient;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.http.HttpEntity;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Logger;
 
 /**
@@ -136,6 +136,53 @@ public class WechatTools {
             logger.info(e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * 更新微信联系人
+     */
+    public static boolean updateContact() {
+        String url = String.format("%s/webwxgetcontact", core.getLoginInfo().get("url"));
+        List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+        params.add(new BasicNameValuePair("pass_ticket", (String) core.getLoginInfo().get("pass_ticket")));
+        params.add(new BasicNameValuePair("skey", (String) core.getLoginInfo().get("skey")));
+        params.add(new BasicNameValuePair("r", String.valueOf(String.valueOf(new Date().getTime()))));
+        HttpEntity entity = myHttpClient.doGet(url, params, true, null);
+        String result;
+        try {
+            result = EntityUtils.toString(entity, "UTF-8");
+        } catch (Exception e) {
+            logger.info(e.getMessage());
+            return false;
+        }
+        JSONObject fullFriendsJsonList = JSON.parseObject(result);
+        core.setMemberCount(fullFriendsJsonList.getInteger(("MemberCount")));
+        JSONArray memberJsonArray = fullFriendsJsonList.getJSONArray("MemberList");
+
+        // 移除已存在core中的联系人
+        core.getMemberList().clear();
+        core.getPublicUsersList().clear();
+        core.getSpecialUsersList().clear();
+        core.getGroupList().clear();
+        core.getContactList().clear();
+
+        for (int i = 0; i < memberJsonArray.size(); i++) {
+            core.getMemberList().add(memberJsonArray.getJSONObject(i));
+        }
+        for (JSONObject o : core.getMemberList()) {
+            if ((o.getInteger("VerifyFlag") & 8) != 0) { // 公众号/服务号
+                core.getPublicUsersList().add(o);
+            } else if (Config.API_SPECIAL_USER.contains(o.getString("UserName"))) { // 特殊账号
+                core.getSpecialUsersList().add(o);
+            } else if (o.getString("UserName").contains("@@")) { // 群聊
+                core.getGroupList().add(o);
+            } else if (o.getString("UserName").equals(core.getUserSelfList().get(0).getString("UserName"))) { // 自己
+                core.getContactList().remove(o);
+            } else { // 普通联系人
+                core.getContactList().add(o);
+            }
+        }
+        return true;
     }
 
 }
